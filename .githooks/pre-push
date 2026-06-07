@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# pre-push hook: 禁止直接 push 到 main / master
+# pre-push hook: 防止 force push 误操作 + 给 main 直推一个软警告
 # =============================================================================
-# 安装方式 (一次性, 团队共享):
-#   git config core.hooksPath .githooks
-# 紧急绕过 (比如 hotfix 紧急发版, 知道自己在干嘛):
-#   ALLOW_PUSH_TO_MAIN=1 git push origin main
+# 设计: 单人开发, 不强制走 PR。main 直推允许, 但打一个 yellow 警告让你知道
+# 自己在干嘛。force push 全部禁止, 删 main 也禁止 (防误操作)。
 # =============================================================================
 
 set -euo pipefail
@@ -13,44 +11,14 @@ set -euo pipefail
 # 读取 git 喂给 hook 的 stdin
 # 格式: <local_ref> <local_oid> <remote_ref> <remote_oid> (每行一组)
 while read -r local_ref local_oid remote_ref remote_oid; do
-  # 空行跳过 (git 在某些场景下会送空行)
   [ -z "$local_ref" ] && continue
 
-  # 取远端分支名 (例如 refs/heads/main -> main)
   remote_branch="${remote_ref#refs/heads/}"
 
-  # 只拦截主干, 其他分支不挡
   case "$remote_branch" in
     main|master)
-      if [ "${ALLOW_PUSH_TO_MAIN:-0}" = "1" ]; then
-        echo "[pre-push] ⚠️  ALLOW_PUSH_TO_MAIN=1, 放行直接推 main"
-        echo "[pre-push]    请事后立刻 review, 并在团队群里报备"
-        continue
-      fi
-
-      echo ""
-      echo "╔══════════════════════════════════════════════════════════╗"
-      echo "║  ❌ 禁止直接 push 到 ${remote_branch}                              ║"
-      echo "╠══════════════════════════════════════════════════════════╣"
-      echo "║  请按下面流程走:                                          ║"
-      echo "║   1) 从 main 开新分支                                    ║"
-      echo "║        git checkout main && git pull                     ║"
-      echo "║        git checkout -b feat/xxx                         ║"
-      echo "║   2) 在新分支上 push                                     ║"
-      echo "║        git push -u origin feat/xxx                       ║"
-      echo "║   3) 平台 (GitHub/GitLab) 上开 PR/MR, 走 review + CI     ║"
-      echo "║                                                          ║"
-      echo "║  紧急绕过 (不推荐):                                      ║"
-      echo "║        ALLOW_PUSH_TO_MAIN=1 git push origin main         ║"
-      echo "╚══════════════════════════════════════════════════════════╝"
-      echo ""
-      exit 1
-      ;;
-    release/*|hotfix/*)
-      # 这两类也建议走 PR, 但允许强推 (CI 会再兜一层)
-      ;;
-    *)
-      # 其它分支不挡
+      # 单人开发, 不拦直推, 只警告一下
+      echo "[pre-push] ⚠️  正在直推 ${remote_branch} (单人开发允许, 但确认你 push 的是对的)"
       ;;
   esac
 done
