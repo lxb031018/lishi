@@ -1,0 +1,45 @@
+name: Auto-approve (solo dev)
+
+# =============================================================================
+# 单人开发工作流: 自动批准仓库 owner 自己提的 PR
+# =============================================================================
+# 触发场景:
+#   - opened        开 PR 时
+#   - synchronize   push 新 commit 时 (re-approve, 抵消 "dismiss stale approval")
+#   - reopened      关闭后重开
+#   - ready_for_review draft 转正式
+#
+# 安全边界:
+#   - 只在 PR 作者 == 仓库 owner 时批准
+#   - fork 来的 PR (作者 != owner) 会被跳过, 不会自动批
+#   - 不会自动 merge, 合并动作由人触发 (或你单独装个 auto-merge)
+# =============================================================================
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+# 最小权限: 只给 pull-requests 写权限, 不给 contents 等多余权限
+permissions:
+  pull-requests: write
+
+jobs:
+  auto-approve:
+    name: Approve if PR is from repo owner
+    runs-on: ubuntu-latest
+    # 关键安全条件: PR 作者必须是仓库 owner
+    if: github.event.pull_request.user.login == github.repository_owner
+    steps:
+      - name: Approve PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" \
+            --approve \
+            --body "✅ Auto-approved (solo dev workflow)
+
+          - PR 作者: ${{ github.event.pull_request.user.login }}
+          - 仓库 owner: ${{ github.repository_owner }}
+          - 匹配, 自动批准
+
+          仍需 CI 全绿才能 merge, 这条 workflow 不绕过 status checks。"

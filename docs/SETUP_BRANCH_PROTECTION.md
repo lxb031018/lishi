@@ -3,6 +3,7 @@
 > 适用: https://github.com/lxb031018/lishi
 > 目标: 让 main 只能通过 PR + CI 全绿才能合入, 自己也不能直接 push
 > 当前 CI 只有 3 个 job (iOS 暂不做, 见 `ci.yml` 末尾注释)
+> **单人开发**: 用 `.github/workflows/auto-approve.yml` 自动批准 owner 自己的 PR, 不再需要临时改规则
 
 ---
 
