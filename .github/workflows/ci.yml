@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  # 主干 + PR 都跑
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # 允许在 Actions 页面手动触发
+  workflow_dispatch:
+
+# 同一次 push 取消上一次还在跑的 (节省 CI 分钟)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 同一个 job 的 4 个平台/检查并发跑
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # 1. 静态分析 + 格式检查
+  # ─────────────────────────────────────────────────────────
+  analyze:
+    name: Analyze & format
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 (Android 需要)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # 想锁版本就把下面这行打开, 优先用项目里 .fvmrc
+          # flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Show versions
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify format (有未格式化文件就失败)
+        run: dart format --set-exit-if-changed --output=none .
+
+      - name: Static analysis (info/warning 也算失败)
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+  # ─────────────────────────────────────────────────────────
+  # 2. 单元测试 + Widget 测试
+  # ─────────────────────────────────────────────────────────
+  test:
+    name: Unit & widget tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Upload coverage to Codecov (可选, 配了 token 才生效)
+        if: env.CODECOV_TOKEN != null
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────
+  # 3. Android debug APK 构建
+  # ─────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android (debug APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────
+  # 4. iOS 构建 (无签名, 只验证能编过)
+  # ─────────────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS (no codesign)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        run: |
+          sudo gem install cocoapods --no-document
+          pod --version
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --debug --no-codesign
+
+      # 正式签名发版时, 在 Apple Developer 里配 signing,
+      # 走 fastlane / xcodebuild archive, 别在 CI 里硬塞 cert
