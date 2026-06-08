@@ -43,6 +43,9 @@ dependencies:
   # 时间格式化
   intl: ^0.20.1
 
+  # 首次启动同意状态持久化
+  shared_preferences: ^2.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

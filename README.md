@@ -28,3 +28,10 @@ flutter test             # 单元 + Widget 测试
 - 不走 PR 流程, 每次 commit 一次只做一件事
 - 提交信息参考 `.gitmessage` 模板 (Conventional Commits 风格)
 - CI 会在 push 后自动跑 analyze / test / build-android, 不强制门禁
+
+## 法务
+
+- [《用户协议》](docs/USER_AGREEMENT.md)
+- [《隐私政策》](docs/PRIVACY_POLICY.md)
+
+本应用是**纯本地**应用, 不联网, 不收集任何个人信息, 未集成任何第三方 SDK。
